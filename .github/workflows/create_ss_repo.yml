@@ -1,39 +1,40 @@
 name: Automate Creation of Repo for POC Projects
 
 on:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
     inputs:
       teamName:
-        description: 'Team Name:'
+        description: Team Name
         required: true
         type: choice
         options:
-          - '--CHOOSE--'
-          - 'dev'
-          - 'prod'
-          - 'qa'
+          - dev
+          - prod
+          - qa
 
       appName:
-        description: 'App Name (Unique short name for application) (Lowercase - No Spaces):'
+        description: Application Name (lowercase, no spaces)
         required: true
         type: string
+
       repoDescription:
-        description: 'Repo Description (Optional):'
+        description: Repository Description
         required: false
         type: string
+
       repoVisibility:
-        description: 'Repo Visibility in the Touchdigitalhub:'
+        description: Repository Visibility
         required: true
-        default: 'private'
+        default: private
         type: choice
         options:
           - public
           - private
+
       repoTemplate:
-        description: 'Repo QuickStart Template ("Blank" creates an empty repo):'
+        description: Repository Template
         required: true
-        default: 'blank'
+        default: monorepo
         type: choice
         options:
           - monorepo
@@ -41,62 +42,136 @@ on:
           - azure
           - openshift
           - blank
+
       devTeamName:
-        description: 'GitHub Org Team Name:'
+        description: Developer Team
         required: true
-        default: 'FILL_HERE'
-        type: string
-      approverTeamName:
-        description: 'GitHub PR Approval Team Name:'
-        required: true
-        default: 'FILL_HERE'
         type: string
 
+      approverTeamName:
+        description: Approver Team
+        required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
-  createGitHubRepo:
-    name: Create GitHub Repo
+  create-repository:
+    name: Create Repository
     runs-on: ubuntu-latest
 
     env:
-      RepoName: ${{ inputs.teamName }}-${{ inputs.appName }}
+      GH_TOKEN: ${{ secrets.REPO_ADMIN_PAT }}
 
     steps:
-      # Checkout just the github folder from the Repo
-      - name: Checkout Scripts from Repo
+
+      - name: Checkout Provisioning Repository
         uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            github
-      
-    # Whats in our workspace folder?
-      - name: Workspace folder contents
-        run: |
-          ls -lah ./
 
-      # Do some repo name variable cleanup
-      - name: RepoName should be all lower case
-        run: echo "RepoName=${RepoName@L}" >> "${GITHUB_ENV}"
-      - name: RepoName should contain no spaces replace with "-"
-        run: echo "RepoName=${RepoName// /-}" >> "${GITHUB_ENV}"
-      
-      # Run the GitHub Repo Create Script
-      - name: Run Create GitHub Repo Script
+      - name: Validate Inputs
+        shell: bash
         run: |
-            chmod +x ./github/monorepo.sh
-            bash -File ./github/monorepo.sh
 
-      
-      # Add some information to the Workflow's Summary.
-      - name: Update GitHub Workflow's Summary - On Success
+          if ! [[ "${{ inputs.appName }}" =~ ^[a-z0-9-]+$ ]]
+          then
+            echo "Application name must contain only lowercase letters and hyphens."
+            exit 1
+          fi
+
+      - name: Generate Repository Name
+        shell: bash
+        run: |
+
+          REPO_NAME="${{ inputs.teamName }}-${{ inputs.appName }}"
+          REPO_NAME=$(echo "$REPO_NAME" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME=${REPO_NAME// /-}
+
+          echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
+
+      - name: Check Repository Does Not Exist
+        shell: bash
+        run: |
+
+          if gh repo view "touchdigitalhub/${REPO_NAME}" >/dev/null 2>&1
+          then
+            echo "Repository already exists."
+            exit 1
+          fi
+
+      - name: Create GitHub Repository
+        shell: bash
+        run: |
+
+          if [[ "${{ inputs.repoVisibility }}" == "private" ]]
+          then
+            VISIBILITY="--private"
+          else
+            VISIBILITY="--public"
+          fi
+
+          gh repo create \
+            "touchdigitalhub/${REPO_NAME}" \
+            $VISIBILITY \
+            --description "${{ inputs.repoDescription }}"
+
+      - name: Clone New Repository
+        shell: bash
+        run: |
+
+          gh repo clone \
+            "touchdigitalhub/${REPO_NAME}" \
+            "./${REPO_NAME}"
+
+      - name: Execute Scaffolder
+        shell: bash
+        env:
+          REPO_TEMPLATE: ${{ inputs.repoTemplate }}
+          DEV_TEAM: ${{ inputs.devTeamName }}
+          APPROVER_TEAM: ${{ inputs.approverTeamName }}
+        run: |
+
+          chmod +x ./github/monorepo.sh
+
+          ./github/monorepo.sh \
+            "${REPO_NAME}" \
+            "./${REPO_NAME}"
+
+      - name: Commit Scaffold
+        shell: bash
+        run: |
+
+          cd "${REPO_NAME}"
+
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          git add .
+
+          if git diff --cached --quiet
+          then
+            echo "Nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "Initial repository scaffold"
+
+          git push origin main
+
+      - name: Success Summary
         if: success()
         run: |
-          echo "### :octocat: Repo (touchdigitalhub/${{ env.RepoName }}) Successfully Created!" >> $GITHUB_STEP_SUMMARY
-          echo "You can access it here: https://github.com/touchdigitalhub/${{ env.RepoName }}" >> $GITHUB_STEP_SUMMARY
-      
-      # Add some information to the Workflow's Summary.
-      - name: Update GitHub Workflow's Summary - On Failure
+
+          echo "## ✅ Repository Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${REPO_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "https://github.com/touchdigitalhub/${REPO_NAME}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Failure Summary
         if: failure()
         run: |
-          echo "### :x: Failed to Create Repo!" >> $GITHUB_STEP_SUMMARY
-          echo "Please review the logs above to diagnose what went wrong." >> $GITHUB_STEP_SUMMARY
+
+          echo "## ❌ Repository Creation Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Review workflow logs for details." >> $GITHUB_STEP_SUMMARY
