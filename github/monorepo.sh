@@ -187,48 +187,27 @@ create_api() {
   case "$API_TYPE" in
 
     node)
-
-      mkdir -p "$PROJECT_DIR/api"/{
-        src,
-        routes,
-        middleware
-      }
-
+      mkdir -p "$PROJECT_DIR/api"/{src,routes,middleware}
       touch "$PROJECT_DIR/api/package.json"
       touch "$PROJECT_DIR/api/src/index.js"
-
       log_success "Node API scaffolded"
       ;;
 
     python)
-
-      mkdir -p "$PROJECT_DIR/api"/{
-        src,
-        tests
-      }
-
+      mkdir -p "$PROJECT_DIR/api"/{src,tests}
       touch "$PROJECT_DIR/api/requirements.txt"
       touch "$PROJECT_DIR/api/src/main.py"
-
       log_success "Python API scaffolded"
       ;;
 
     go)
-
-      mkdir -p "$PROJECT_DIR/api"/{
-        cmd,
-        internal,
-        pkg
-      }
-
+      mkdir -p "$PROJECT_DIR/api"/{cmd,internal,pkg}
       touch "$PROJECT_DIR/api/go.mod"
       touch "$PROJECT_DIR/api/main.go"
-
       log_success "Go API scaffolded"
       ;;
 
     spring)
-
       require_command curl
       require_command unzip
 
@@ -252,7 +231,6 @@ create_api() {
       ;;
 
     *)
-
       log_warning "Unknown API type: $API_TYPE"
       ;;
 
@@ -270,45 +248,26 @@ create_web() {
   case "$WEB_TYPE" in
 
     react)
-
-      mkdir -p "$PROJECT_DIR/web/app"/{
-        public,
-        src
-      }
-
+      mkdir -p "$PROJECT_DIR/web/app"/{public,src}
       touch "$PROJECT_DIR/web/app/index.html"
       touch "$PROJECT_DIR/web/app/src/main.jsx"
       touch "$PROJECT_DIR/web/app/src/App.jsx"
-
       log_success "React app scaffolded"
       ;;
 
     dashboard)
-
-      mkdir -p "$PROJECT_DIR/web/dashboard"/{
-        public,
-        src
-      }
-
+      mkdir -p "$PROJECT_DIR/web/dashboard"/{public,src}
       touch "$PROJECT_DIR/web/dashboard/src/main.jsx"
-
       log_success "Dashboard scaffolded"
       ;;
 
     supabase)
-
-      mkdir -p "$PROJECT_DIR/web/supabase"/{
-        migrations,
-        functions
-      }
-
+      mkdir -p "$PROJECT_DIR/web/supabase"/{migrations,functions}
       touch "$PROJECT_DIR/web/supabase/config.toml"
-
       log_success "Supabase scaffolded"
       ;;
 
     none)
-
       log_info "No web component selected"
       ;;
 
@@ -326,38 +285,28 @@ create_deploy() {
   case "$DEPLOY_TYPE" in
 
     docker)
-
       mkdir -p "$PROJECT_DIR/deploy/docker"
-
       touch "$PROJECT_DIR/deploy/docker/Dockerfile"
       touch "$PROJECT_DIR/deploy/docker/docker-compose.yml"
-
       log_success "Docker scaffolded"
       ;;
 
     terraform)
-
       mkdir -p "$PROJECT_DIR/deploy/terraform"
-
       touch "$PROJECT_DIR/deploy/terraform/main.tf"
       touch "$PROJECT_DIR/deploy/terraform/variables.tf"
       touch "$PROJECT_DIR/deploy/terraform/outputs.tf"
-
       log_success "Terraform scaffolded"
       ;;
 
     helm)
-
       mkdir -p "$PROJECT_DIR/deploy/helm"
-
       touch "$PROJECT_DIR/deploy/helm/Chart.yaml"
       touch "$PROJECT_DIR/deploy/helm/values.yaml"
-
       log_success "Helm scaffolded"
       ;;
 
     none)
-
       log_info "No deployment component selected"
       ;;
 
@@ -369,17 +318,10 @@ create_deploy() {
 # ==========================================================
 
 create_docs() {
-
-  mkdir -p "$PROJECT_DIR/docs"/{
-    architecture,
-    api,
-    runbooks
-  }
-
+  mkdir -p "$PROJECT_DIR/docs"/{architecture,api,runbooks}
   touch "$PROJECT_DIR/docs/architecture/.gitkeep"
   touch "$PROJECT_DIR/docs/api/.gitkeep"
   touch "$PROJECT_DIR/docs/runbooks/.gitkeep"
-
   log_success "Documentation scaffolded"
 }
 
