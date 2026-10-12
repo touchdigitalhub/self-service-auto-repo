@@ -97,28 +97,23 @@ mkdir -p "$PROJECT_DIR"
 # ==========================================================
 # ROOT STRUCTURE
 # ==========================================================
-
 create_root() {
 
   log_info "Creating root structure"
 
-  mkdir -p "$PROJECT_DIR"/{
-    docs,
-    scripts,
-    .github/workflows
-  }
+  mkdir -p "$PROJECT_DIR/docs"
+  mkdir -p "$PROJECT_DIR/scripts"
+  mkdir -p "$PROJECT_DIR/.github/workflows"
 
-  touch \
-    "$PROJECT_DIR/README.md" \
-    "$PROJECT_DIR/CHANGELOG.md" \
-    "$PROJECT_DIR/CONTRIBUTING.md" \
-    "$PROJECT_DIR/LICENSE" \
-    "$PROJECT_DIR/CODEOWNERS" \
-    "$PROJECT_DIR/.gitignore" \
-    "$PROJECT_DIR/.editorconfig"
+  touch "$PROJECT_DIR/README.md"
+  touch "$PROJECT_DIR/CHANGELOG.md"
+  touch "$PROJECT_DIR/CONTRIBUTING.md"
+  touch "$PROJECT_DIR/LICENSE"
+  touch "$PROJECT_DIR/CODEOWNERS"
+  touch "$PROJECT_DIR/.gitignore"
+  touch "$PROJECT_DIR/.editorconfig"
 
   log_success "Root structure created"
-
 }
 # ==========================================================
 # README
