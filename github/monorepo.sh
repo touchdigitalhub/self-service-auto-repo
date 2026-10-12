@@ -1,572 +1,415 @@
-#!/bin/bash
-
-# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
-# monorepo.sh
-# Runs ONCE to scaffold project structure, init git, and set up hooks
-# Usage:1) -> Run monorepo from anywhere, creates project in default location: /northstar_projects/my_app
-#       2) -> Run with project name and custom path: monorepo my_app /custom/path, creates /custom/path/my_app
-# ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-# ═══════════════════════════════════════════════════════════════
-# GLOBAL PATH
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
+# CONFIG
+# ==========================================================
 
-SCRIPT_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# ═══════════════════════════════════════════════════════════════
+PROJECT_NAME="${1:-}"
+TARGET_PATH="${2:-$(pwd)}"
+
+REPO_TEMPLATE="${REPO_TEMPLATE:-monorepo}"
+
+API_TYPE="${API_TYPE:-node}"
+WEB_TYPE="${WEB_TYPE:-react}"
+DEPLOY_TYPE="${DEPLOY_TYPE:-docker}"
+
+# ==========================================================
 # COLOURS
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-LIGHT_BLUE='\033[1;34m'
-CYAN='\033[0;36m'
 NC='\033[0m'
 
-# ═══════════════════════════════════════════════════════════════
-# USER / CONFIG
-# ═══════════════════════════════════════════════════════════════
-
-current_user=$(whoami)
-current_directory=$(pwd)
-last_login=$(date)
-
-default_project_path="${PROJECTS_HOME:-$HOME/northstar_projects}"
-
-branch_name="feature/initial-setup"
-
-# Use Husky only when Node ecosystem exists
-use_husky=false
-
-# ═══════════════════════════════════════════════════════════════
-# BANNER
-# ═══════════════════════════════════════════════════════════════
-
-echo -e "${BLUE}===================== Monorepo Scaffolder ==============================${NC}"
-echo -e "Username:          ${LIGHT_BLUE}$current_user${NC}"
-echo -e "Current Directory: ${LIGHT_BLUE}$current_directory${NC}"
-echo -e "Shell:             ${GREEN}$SHELL${NC}"
-echo -e "Last Login:        ${YELLOW}$last_login${NC}"
-echo -e "${BLUE}=======================================================================${NC}"
-
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
 # HELPERS
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
 
-log_success() { echo -e "${GREEN}  ✔ $1${NC}"; }
-log_warning() { echo -e "${YELLOW}  ⚠ $1${NC}"; }
-log_error()   { echo -e "${RED}  ✖ $1${NC}"; }
+log_info() {
+  echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+  echo -e "${GREEN}[OK]${NC} $1"
+}
+
+log_warning() {
+  echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+  echo -e "${RED}[ERROR]${NC} $1"
+}
 
 safe_copy() {
   local src="$1"
-  local dest="$2"
+  local dst="$2"
 
-  if [ -f "$src" ]; then
-    cp "$src" "$dest"
+  if [[ -f "$src" ]]
+  then
+    cp "$src" "$dst"
   else
     log_warning "Missing template: $src"
   fi
 }
 
-# ═══════════════════════════════════════════════════════════════
-# INPUT HANDLING
-# ═══════════════════════════════════════════════════════════════
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || {
+    log_error "$1 not installed"
+    exit 1
+  }
+}
 
-if [ -n "${1:-}" ]; then
-  project_name="$1"
-else
-  echo -ne "${LIGHT_BLUE}Please enter your Project Name (e.g. my_app): ${NC}"
-  read -r project_name
-fi
+# ==========================================================
+# VALIDATION
+# ==========================================================
 
-while [ -z "$project_name" ]; do
-  log_error "Project name cannot be empty."
-  read -r project_name
-done
-
-target_path="${2:-$default_project_path}"
-
-mkdir -p "$target_path"
-
-project_dir="$target_path/$project_name"
-
-if [ -d "$project_dir" ]; then
-  log_error "'$project_name' already exists at $target_path"
+if [[ -z "$PROJECT_NAME" ]]
+then
+  log_error "Usage:"
+  echo "./monorepo.sh <project-name> <target-path>"
   exit 1
 fi
 
-# ═══════════════════════════════════════════════════════════════
-# SECTION CONFIGURATION
-# ═══════════════════════════════════════════════════════════════
+if ! [[ "$PROJECT_NAME" =~ ^[a-z0-9-]+$ ]]
+then
+  log_error "Project name must contain lowercase letters, numbers and hyphens only."
+  exit 1
+fi
 
-echo -e "\n${CYAN}Configure API ${NC}"
+PROJECT_DIR="$TARGET_PATH/$PROJECT_NAME"
 
-echo "1) Go"
-echo "2) Python"
-echo "3) Node.js"
-echo "4) Spring Boot"
-echo "5) Skip"
+if [[ -d "$PROJECT_DIR" ]]
+then
+  log_error "Directory already exists:"
+  echo "$PROJECT_DIR"
+  exit 1
+fi
 
-echo -ne "${LIGHT_BLUE}Your choices (e.g. 1 2): ${NC}"
+mkdir -p "$PROJECT_DIR"
 
-read -r -a api_choices
-
-echo -e "\n${CYAN}Configure WEB ${NC}"
-
-echo "1) App"
-echo "2) Dashboard"
-echo "3) Supabase"
-echo "4) Skip"
-
-echo -ne "${LIGHT_BLUE}Your choices (e.g. 1 2): ${NC}"
-
-read -r -a web_choices
-
-echo -e "\n${CYAN}Configure APP ${NC}"
-
-echo "1) Android"
-echo "2) iOS"
-echo "3) Flutter"
-echo "4) Skip"
-
-echo -ne "${LIGHT_BLUE}Your choices (e.g. 1 2): ${NC}"
-
-read -r -a app_choices
-
-echo -e "\n${CYAN}Configure DEPLOY ${NC}"
-
-echo "1) Docker"
-echo "2) Helm"
-echo "3) Terraform"
-echo "4) Skip"
-
-echo -ne "${LIGHT_BLUE}Your choices (e.g. 1 2): ${NC}"
-
-read -r -a deploy_choices
-
-# ═══════════════════════════════════════════════════════════════
-# DETECT NODE ECOSYSTEM
-# ═══════════════════════════════════════════════════════════════
-
-for choice in "${api_choices[@]}"; do
-  if [ "$choice" = "3" ]; then
-    use_husky=true
-  fi
-done
-
-for choice in "${web_choices[@]}"; do
-  if [ "$choice" = "1" ] || [ "$choice" = "2" ]; then
-    use_husky=true
-  fi
-done
-
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
 # ROOT STRUCTURE
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
 
-scaffold_root() {
+create_root() {
 
-  mkdir -p "$project_dir"/{docs,scripts}
+  log_info "Creating root structure"
 
-  if [ "$use_husky" = false ]; then
-    mkdir -p "$project_dir/hooks"
-  fi
+  mkdir -p "$PROJECT_DIR"/{
+    docs,
+    scripts,
+    .github/workflows
+  }
 
-  touch "$project_dir"/{README.md,CHANGELOG.md,CONTRIBUTING.md,LICENSE,CODEOWNERS,.gitignore,.dockerignore,.editorconfig}
-
-  touch "$project_dir/Makefile"
-
-  safe_copy \
-    "$SCRIPT_DIR/pre-push-checks.sh" \
-    "$project_dir/scripts/pre-push-checks.sh"
-
-  chmod +x "$project_dir/scripts/pre-push-checks.sh"
-
-  if [ "$use_husky" = false ]; then
-
-    safe_copy \
-      "$SCRIPT_DIR/hooks/pre-push" \
-      "$project_dir/hooks/pre-push"
-
-    chmod +x "$project_dir/hooks/pre-push"
-  fi
+  touch "$PROJECT_DIR"/{
+    README.md,
+    CHANGELOG.md,
+    CONTRIBUTING.md,
+    LICENSE,
+    CODEOWNERS,
+    .gitignore,
+    .editorconfig
+  }
 
   log_success "Root structure created"
 }
 
-# ═══════════════════════════════════════════════════════════════
-# API GENERATORS
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
+# README
+# ==========================================================
 
-scaffold_api() {
+create_readme() {
 
-  echo -e "\n${CYAN}── api/ ────────────────────────────────────────────────${NC}"
+cat > "$PROJECT_DIR/README.md" <<EOF
+# $PROJECT_NAME
 
-  for choice in "${api_choices[@]}"; do
+Generated by Touch Digital Hub Scaffolder
 
-    case $choice in
+## Repository Information
 
-      1)
-        mkdir -p "$project_dir/api"/{cmd,internal,pkg}
+| Setting | Value |
+|----------|--------|
+| Template | $REPO_TEMPLATE |
+| API | $API_TYPE |
+| Web | $WEB_TYPE |
+| Deploy | $DEPLOY_TYPE |
 
-        touch "$project_dir/api/main.go"
-        touch "$project_dir/api/go.mod"
+## Structure
 
-        safe_copy \
-          "$SCRIPT_DIR/templates/go/Makefile" \
-          "$project_dir/api/Makefile"
+\`\`\`
+api/
+web/
+deploy/
+docs/
+\`\`\`
 
-        log_success "Go API configured"
-        ;;
+## Getting Started
 
-      2)
-        mkdir -p "$project_dir/api"/{src,tests}
+Review the documentation in:
 
-        touch "$project_dir/api/src/main.py"
-        touch "$project_dir/api/requirements.txt"
+docs/
 
-        log_success "Python API configured"
-        ;;
+EOF
 
-      3)
-        mkdir -p "$project_dir/api"/{src,routes,middleware}
+  log_success "README generated"
+}
 
-        touch "$project_dir/api/src/index.js"
-        touch "$project_dir/api/package.json"
+# ==========================================================
+# METADATA
+# ==========================================================
 
-        safe_copy \
-          "$SCRIPT_DIR/templates/node/eslint.config.js" \
-          "$project_dir/api/eslint.config.js"
+create_metadata() {
 
-        log_success "Node.js API configured"
-        ;;
+cat > "$PROJECT_DIR/project.json" <<EOF
+{
+  "project":"$PROJECT_NAME",
+  "template":"$REPO_TEMPLATE",
+  "api":"$API_TYPE",
+  "web":"$WEB_TYPE",
+  "deploy":"$DEPLOY_TYPE",
+  "generated":"$(date -u +%Y-%m-%d)"
+}
+EOF
 
-      4)
-        mkdir -p "$project_dir/api/springboot"
+  log_success "Metadata generated"
+}
 
-        cd "$project_dir/api/springboot" || exit
+# ==========================================================
+# API
+# ==========================================================
 
-        curl -fsSL https://start.spring.io/starter.zip \
+create_api() {
+
+  mkdir -p "$PROJECT_DIR/api"
+
+  case "$API_TYPE" in
+
+    node)
+
+      mkdir -p "$PROJECT_DIR/api"/{
+        src,
+        routes,
+        middleware
+      }
+
+      touch "$PROJECT_DIR/api/package.json"
+      touch "$PROJECT_DIR/api/src/index.js"
+
+      log_success "Node API scaffolded"
+      ;;
+
+    python)
+
+      mkdir -p "$PROJECT_DIR/api"/{
+        src,
+        tests
+      }
+
+      touch "$PROJECT_DIR/api/requirements.txt"
+      touch "$PROJECT_DIR/api/src/main.py"
+
+      log_success "Python API scaffolded"
+      ;;
+
+    go)
+
+      mkdir -p "$PROJECT_DIR/api"/{
+        cmd,
+        internal,
+        pkg
+      }
+
+      touch "$PROJECT_DIR/api/go.mod"
+      touch "$PROJECT_DIR/api/main.go"
+
+      log_success "Go API scaffolded"
+      ;;
+
+    spring)
+
+      require_command curl
+      require_command unzip
+
+      mkdir -p "$PROJECT_DIR/api/springboot"
+
+      (
+        cd "$PROJECT_DIR/api/springboot"
+
+        curl -fsSL \
+          https://start.spring.io/starter.zip \
           -d dependencies=web \
-          -d name="$project_name-api" \
           -d type=maven-project \
+          -d name="$PROJECT_NAME-api" \
           -o starter.zip
 
         unzip -q starter.zip
-
         rm starter.zip
+      )
 
-        cd "$project_dir" || exit
+      log_success "Spring Boot scaffolded"
+      ;;
 
-        log_success "Spring Boot API configured"
-        ;;
+    *)
 
-      5)
-        log_warning "API section skipped"
-        ;;
+      log_warning "Unknown API type: $API_TYPE"
+      ;;
 
-      *)
-        log_error "Unknown API choice: $choice"
-        ;;
-    esac
-  done
+  esac
 }
 
-# ═══════════════════════════════════════════════════════════════
-# WEB GENERATORS
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
+# WEB
+# ==========================================================
 
-scaffold_web() {
+create_web() {
 
-  echo -e "\n${CYAN}── web/ ────────────────────────────────────────────────${NC}"
+  mkdir -p "$PROJECT_DIR/web"
 
-  for choice in "${web_choices[@]}"; do
+  case "$WEB_TYPE" in
 
-    case $choice in
+    react)
 
-      1)
-        mkdir -p "$project_dir/web/app"/{public,src}
+      mkdir -p "$PROJECT_DIR/web/app"/{
+        public,
+        src
+      }
 
-        touch "$project_dir/web/app/index.html"
-        touch "$project_dir/web/app/src/main.jsx"
-        touch "$project_dir/web/app/src/App.jsx"
+      touch "$PROJECT_DIR/web/app/index.html"
+      touch "$PROJECT_DIR/web/app/src/main.jsx"
+      touch "$PROJECT_DIR/web/app/src/App.jsx"
 
-        safe_copy \
-          "$SCRIPT_DIR/templates/react/eslint.config.js" \
-          "$project_dir/web/app/eslint.config.js"
+      log_success "React app scaffolded"
+      ;;
 
-        log_success "web/app configured"
-        ;;
+    dashboard)
 
-      2)
-        mkdir -p "$project_dir/web/dashboard"/{public,src}
+      mkdir -p "$PROJECT_DIR/web/dashboard"/{
+        public,
+        src
+      }
 
-        touch "$project_dir/web/dashboard/index.html"
-        touch "$project_dir/web/dashboard/src/main.jsx"
-        touch "$project_dir/web/dashboard/src/App.jsx"
+      touch "$PROJECT_DIR/web/dashboard/src/main.jsx"
 
-        safe_copy \
-          "$SCRIPT_DIR/templates/react/eslint.config.js" \
-          "$project_dir/web/dashboard/eslint.config.js"
+      log_success "Dashboard scaffolded"
+      ;;
 
-        log_success "web/dashboard configured"
-        ;;
+    supabase)
 
-      3)
-        mkdir -p "$project_dir/web/supabase"/{migrations,functions}
+      mkdir -p "$PROJECT_DIR/web/supabase"/{
+        migrations,
+        functions
+      }
 
-        touch "$project_dir/web/supabase/config.toml"
+      touch "$PROJECT_DIR/web/supabase/config.toml"
 
-        log_success "web/supabase configured"
-        ;;
+      log_success "Supabase scaffolded"
+      ;;
 
-      4)
-        log_warning "Web section skipped"
-        ;;
+    none)
 
-      *)
-        log_error "Unknown WEB choice: $choice"
-        ;;
-    esac
-  done
+      log_info "No web component selected"
+      ;;
+
+  esac
 }
 
-# ═══════════════════════════════════════════════════════════════
-# APP GENERATORS
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
+# DEPLOY
+# ==========================================================
 
-scaffold_app() {
+create_deploy() {
 
-  echo -e "\n${CYAN}── app/ ────────────────────────────────────────────────${NC}"
+  mkdir -p "$PROJECT_DIR/deploy"
 
-  for choice in "${app_choices[@]}"; do
+  case "$DEPLOY_TYPE" in
 
-    case $choice in
+    docker)
 
-      1)
-        mkdir -p "$project_dir/app/android"/{app/src/main,gradle}
+      mkdir -p "$PROJECT_DIR/deploy/docker"
 
-        touch "$project_dir/app/android/build.gradle"
+      touch "$PROJECT_DIR/deploy/docker/Dockerfile"
+      touch "$PROJECT_DIR/deploy/docker/docker-compose.yml"
 
-        log_success "Android app configured"
-        ;;
+      log_success "Docker scaffolded"
+      ;;
 
-      2)
-        mkdir -p "$project_dir/app/ios"/{Sources,Resources}
+    terraform)
 
-        touch "$project_dir/app/ios/Podfile"
+      mkdir -p "$PROJECT_DIR/deploy/terraform"
 
-        log_success "iOS app configured"
-        ;;
+      touch "$PROJECT_DIR/deploy/terraform/main.tf"
+      touch "$PROJECT_DIR/deploy/terraform/variables.tf"
+      touch "$PROJECT_DIR/deploy/terraform/outputs.tf"
 
-      3)
-        mkdir -p "$project_dir/app/flutter"/{lib,test,assets}
+      log_success "Terraform scaffolded"
+      ;;
 
-        touch "$project_dir/app/flutter/pubspec.yaml"
+    helm)
 
-        log_success "Flutter app configured"
-        ;;
+      mkdir -p "$PROJECT_DIR/deploy/helm"
 
-      4)
-        log_warning "App section skipped"
-        ;;
+      touch "$PROJECT_DIR/deploy/helm/Chart.yaml"
+      touch "$PROJECT_DIR/deploy/helm/values.yaml"
 
-      *)
-        log_error "Unknown APP choice: $choice"
-        ;;
-    esac
-  done
+      log_success "Helm scaffolded"
+      ;;
+
+    none)
+
+      log_info "No deployment component selected"
+      ;;
+
+  esac
 }
 
-# ═══════════════════════════════════════════════════════════════
-# DEPLOY GENERATORS
-# ═══════════════════════════════════════════════════════════════
-
-scaffold_deploy() {
-
-  echo -e "\n${CYAN}── deploy/ ─────────────────────────────────────────────${NC}"
-
-  for choice in "${deploy_choices[@]}"; do
-
-    case $choice in
-
-      1)
-        mkdir -p "$project_dir/deploy/docker"
-
-        safe_copy \
-          "$SCRIPT_DIR/templates/Dockerfile" \
-          "$project_dir/deploy/docker/Dockerfile"
-
-        safe_copy \
-          "$SCRIPT_DIR/templates/docker-compose.yml" \
-          "$project_dir/deploy/docker/docker-compose.yml"
-
-        safe_copy \
-          "$SCRIPT_DIR/templates/.dockerignore" \
-          "$project_dir/deploy/docker/.dockerignore"
-
-        log_success "Docker configured"
-        ;;
-
-      2)
-        mkdir -p "$project_dir/deploy/helm"/{templates,charts}
-
-        touch "$project_dir/deploy/helm/Chart.yaml"
-        touch "$project_dir/deploy/helm/values.yaml"
-
-        log_success "Helm configured"
-        ;;
-
-      3)
-        mkdir -p "$project_dir/deploy/terraform"/{modules,environments}
-
-        touch "$project_dir/deploy/terraform/main.tf"
-        touch "$project_dir/deploy/terraform/variables.tf"
-        touch "$project_dir/deploy/terraform/outputs.tf"
-
-        log_success "Terraform configured"
-        ;;
-
-      4)
-        log_warning "Deploy section skipped"
-        ;;
-
-      *)
-        log_error "Unknown DEPLOY choice: $choice"
-        ;;
-    esac
-  done
-}
-
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
 # DOCS
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
 
-scaffold_docs() {
+create_docs() {
 
-  echo -e "\n${CYAN}── docs/ ───────────────────────────────────────────────${NC}"
+  mkdir -p "$PROJECT_DIR/docs"/{
+    architecture,
+    api,
+    runbooks
+  }
 
-  mkdir -p "$project_dir/docs"/{architecture,api,guides}
+  touch "$PROJECT_DIR/docs/architecture/.gitkeep"
+  touch "$PROJECT_DIR/docs/api/.gitkeep"
+  touch "$PROJECT_DIR/docs/runbooks/.gitkeep"
 
-  touch "$project_dir/docs/architecture/.gitkeep"
-  touch "$project_dir/docs/api/.gitkeep"
-  touch "$project_dir/docs/guides/.gitkeep"
-
-  log_success "docs configured"
+  log_success "Documentation scaffolded"
 }
 
-# ═══════════════════════════════════════════════════════════════
-# HUSKY SETUP
-# ═══════════════════════════════════════════════════════════════
+# ==========================================================
+# MAIN
+# ==========================================================
 
-setup_husky() {
+log_info "Creating project: $PROJECT_NAME"
 
-  echo -e "\n${BLUE}Setting up Husky...${NC}"
+create_root
+create_readme
+create_metadata
+create_api
+create_web
+create_deploy
+create_docs
 
-  cd "$project_dir" || exit
+echo
+log_success "Scaffold completed"
 
-  npm init -y
-
-  npm install --save-dev husky
-
-  npx husky init
-
-  chmod +x .husky/pre-commit
-
-  log_success "Husky configured"
-}
-
-# ═══════════════════════════════════════════════════════════════
-# GIT + GITHUB
-# ═══════════════════════════════════════════════════════════════
-
-git_init_and_push() {
-
-  if ! gh auth status >/dev/null 2>&1; then
-    log_error "GitHub CLI not authenticated"
-    echo -e "${YELLOW}Run:${NC} gh auth login"
-    exit 1
-  fi
-
-  gh_user=$(gh api user --jq .login)
-
-  gh_protocol=$(gh config get git_protocol 2>/dev/null || echo "https")
-
-  GH_TOKEN=$(gh auth token)
-
-  export GH_TOKEN
-
-  cd "$project_dir" || exit
-
-  git init
-
-  if [ "$use_husky" = false ]; then
-    git config --local core.hooksPath hooks
-  fi
-
-  git switch -c "$branch_name"
-
-  git add .
-
-  git commit -m "Monorepo(Bootstrap): Initial setup commit"
-
-  gh repo create "$project_name" --public --source=.
-
-  if ! git remote | grep -q "origin"; then
-
-    if [ "$gh_protocol" = "ssh" ]; then
-      git remote add origin "git@github.com:$gh_user/$project_name.git"
-    else
-      git remote add origin "https://github.com/$gh_user/$project_name.git"
-    fi
-  fi
-
-  git push -u origin "$branch_name"
-
-  git fetch origin
-
-  git switch -c main
-
-  git push -u origin main --no-verify
-
-  git switch "$branch_name"
-}
-
-# ═══════════════════════════════════════════════════════════════
-# RUN
-# ═══════════════════════════════════════════════════════════════
-
-echo -e "\n${BLUE}Scaffolding monorepo structure...${NC}"
-
-scaffold_root
-scaffold_api
-scaffold_web
-scaffold_app
-scaffold_deploy
-scaffold_docs
-
-if [ "$use_husky" = true ]; then
-  setup_husky
-fi
-
-echo -e "\n${BLUE}Initializing Git repository...${NC}"
-
-git_init_and_push
-
-# ═══════════════════════════════════════════════════════════════
-# FINAL OUTPUT
-# ═══════════════════════════════════════════════════════════════
-
-echo -e "\n${GREEN}✅ '$project_name' monorepo created successfully.${NC}"
-
-echo -e "${LIGHT_BLUE}$project_dir${NC}"
-
-echo -e "${BLUE}=======================================================================${NC}"
-
-echo -e "${GREEN}🎉 All set! '$project_name' is scaffolded and pushed to GitHub.${NC}"
-
-echo -e "${BLUE}=======================================================================${NC}"
+echo
+echo "Project Name : $PROJECT_NAME"
+echo "Location     : $PROJECT_DIR"
+echo "Template     : $REPO_TEMPLATE"
+echo "API          : $API_TYPE"
+echo "Web          : $WEB_TYPE"
+echo "Deploy       : $DEPLOY_TYPE"
+echo
