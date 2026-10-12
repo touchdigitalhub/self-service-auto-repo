@@ -108,18 +108,7 @@ create_root() {
     .github/workflows
   }
 
-  touch "$PROJECT_DIR"/{
-    README.md,
-    CHANGELOG.md,
-    CONTRIBUTING.md,
-    LICENSE,
-    CODEOWNERS,
-    .gitignore,
-    .editorconfig
-  }
-
-  log_success "Root structure created"
-}
+touch "$PROJECT_DIR"/{README.md,CHANGELOG.md,CONTRIBUTING.md,LICENSE,CODEOWNERS,.gitignore,.editorconfig}
 
 # ==========================================================
 # README
