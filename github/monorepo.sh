@@ -85,12 +85,12 @@ fi
 
 PROJECT_DIR="$TARGET_PATH"
 
-if [[ -d "$PROJECT_DIR" ]]
-then
-  log_error "Directory already exists:"
-  echo "$PROJECT_DIR"
-  exit 1
-fi
+# if [[ -d "$PROJECT_DIR" ]]
+# then
+#   log_error "Directory already exists:"
+#   echo "$PROJECT_DIR"
+#   exit 1
+# fi
 
 mkdir -p "$PROJECT_DIR"
 
