@@ -83,7 +83,7 @@ then
   exit 1
 fi
 
-PROJECT_DIR="./$PROJECT_NAME"
+PROJECT_DIR="$TARGET_PATH"
 
 if [[ -d "$PROJECT_DIR" ]]
 then
