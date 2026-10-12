@@ -56,7 +56,7 @@ on:
 jobs:
   createGitHubRepo:
     name: Create GitHub Repo
-    runs-on: ubuntu
+    runs-on: ubuntu-latest
 
     env:
       RepoName: ${{ inputs.teamName }}-${{ inputs.appName }}
