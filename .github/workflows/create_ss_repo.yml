@@ -143,8 +143,8 @@ jobs:
 
           cd "${REPO_NAME}"
 
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config user.name "Francis A"
+          git config user.email "adeboye.francis@icloud.com"
 
           git add .
 
