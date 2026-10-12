@@ -143,8 +143,8 @@ jobs:
 
           cd "${REPO_NAME}"
 
-          git config user.name "Francis A"
-          git config user.email "adeboye.francis@icloud.com"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
 
           git add .
 
@@ -155,6 +155,8 @@ jobs:
           fi
 
           git commit -m "Initial repository scaffold"
+
+          git remote set-url origin https://x-access-token:${{ secrets.REPO_ADMIN_PAT }}@github.com/touchdigitalhub/${REPO_NAME}.git
 
           git push origin main
 
